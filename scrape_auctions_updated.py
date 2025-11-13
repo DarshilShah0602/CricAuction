@@ -424,6 +424,9 @@ def try_load_creds(path: str = "credential.json") -> dict | None:
             return json.load(f)
     except FileNotFoundError:
         return None
+    except json.JSONDecodeError as e:
+        print(f"Warning: Invalid JSON in {path}: {e}")
+        return None
 
 def main():
     print("Scraping...")
