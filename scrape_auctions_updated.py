@@ -419,6 +419,19 @@ class GraphExcelClient:
 # Main
 # ==============================
 def try_load_creds(path: str = "credential.json") -> dict | None:
+    # First, try to load from environment variables (for GitHub Actions)
+    client_id = os.getenv("CLIENT_ID")
+    client_secret = os.getenv("CLIENT_SECRET")
+    tenant_id = os.getenv("TENANT_ID")
+    
+    if client_id and client_secret and tenant_id:
+        return {
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "tenant_id": tenant_id,
+        }
+    
+    # Fall back to loading from credential.json (for local development)
     try:
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
