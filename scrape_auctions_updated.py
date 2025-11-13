@@ -382,38 +382,35 @@ class GraphExcelClient:
 # ==============================
 # Credentials loader (robust)
 # ==============================
-def _read_json_if_valid(p: str):
-    if os.path.exists(p) and os.path.getsize(p) > 0:
-        try:
-            with open(p, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except json.JSONDecodeError as e:
-            print(f"Warning: invalid JSON in {p}: {e}")
-    return None
-
-def try_load_creds(paths: tuple = ("creds.json", "credential.json")) -> dict | None:
-    # 1) File(s)
-    for p in paths:
-        data = _read_json_if_valid(p)
-        if data:
-            print(f"Using credentials from {p}")
-            return data
-
-    # 2) Graph env
+def try_load_creds() -> dict | None:
+    # Priority 1: Environment variables (for CI/GitHub Actions)
+    # Check for Graph/SharePoint credentials
     cid = os.getenv("CLIENT_ID")
     cs  = os.getenv("CLIENT_SECRET")
     tid = os.getenv("TENANT_ID")
     if cid and cs and tid:
         print("Using credentials from environment (Graph).")
         return {"client_id": cid, "client_secret": cs, "tenant_id": tid}
-
-    # 3) Alternative env (email/password)
+    
+    # Check for CB credentials
     email = os.getenv("CB_EMAIL")
     pwd   = os.getenv("CB_PASSWORD")
     if email and pwd:
         print("Using credentials from environment (CB email/password).")
         return {"email": email, "password": pwd}
-
+    
+    # Priority 2: Local JSON files (for local development only)
+    for path in ("creds.json", "credential.json"):
+        if os.path.exists(path) and os.path.getsize(path) > 0:
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    print(f"Using credentials from {path}")
+                    return data
+            except json.JSONDecodeError as e:
+                print(f"Warning: invalid JSON in {path}: {e}")
+                continue
+    
     print("No credentials available.")
     return None
 
