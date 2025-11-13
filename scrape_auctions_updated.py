@@ -1,9 +1,4 @@
-import csv
-import os
-import json
-import time
-import re
-import base64
+import csv, os, json, time, re, base64
 from datetime import datetime, date, timedelta
 from typing import List, Dict, Tuple
 
@@ -17,10 +12,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import (
-    TimeoutException,
-    NoSuchElementException,
-    ElementClickInterceptedException,
-    WebDriverException,
+    TimeoutException, NoSuchElementException, ElementClickInterceptedException, WebDriverException
 )
 
 # ==============================
@@ -50,7 +42,6 @@ def today_str() -> str:
     return date.today().strftime("%Y-%m-%d")
 
 def norm_text(s) -> str:
-    """Robust stringify + whitespace normalize for any cell value."""
     if s is None:
         return ""
     if isinstance(s, (datetime, date)):
@@ -65,13 +56,9 @@ def parse_players(text: str) -> str:
     return m.group(1) if m else norm_text(text)
 
 def parse_auction_date(val) -> str:
-    """
-    Accepts Excel serials, datetime/date, or strings like 01-02-2025, 01/02/2025, 01.02.2025.
-    Returns YYYY-MM-DD (or best-effort string if parsing fails).
-    """
     if isinstance(val, (int, float)):
         try:
-            base = datetime(1899, 12, 30)            # Excel 1900 system
+            base = datetime(1899, 12, 30)  # Excel 1900 system
             d = base + timedelta(days=float(val))
             return d.strftime("%Y-%m-%d")
         except Exception:
@@ -88,15 +75,10 @@ def parse_auction_date(val) -> str:
             return datetime.strptime(s, fmt).strftime("%Y-%m-%d")
         except ValueError:
             continue
-
     m = re.search(r"\b\d{4}-\d{2}-\d{2}\b", s)
     return m.group(0) if m else s
 
 def row_key_from_list(row: List) -> Tuple[str, str, str]:
-    """
-    Keys used for de-dupe. Tolerates non-strings from Excel (numbers, datetimes).
-    Expect row = [Tournament, Location, Total players, Auction Date, Date Added]
-    """
     title = norm_text(row[0]) if len(row) > 0 else ""
     loc   = norm_text(row[1]) if len(row) > 1 else ""
     auc   = parse_auction_date(row[3]) if len(row) > 3 else ""
@@ -110,8 +92,7 @@ def row_key_from_dict(d: Dict[str, str]) -> Tuple[str, str, str]:
     )
 
 def print_table_header():
-    print("")
-    print("-" * 120)
+    print("\n" + "-" * 120)
     print(f"{'Tournament Name':50} | {'Location':20} | {'Total':5} | {'Auction Date':12} | {'Date Added':10}")
     print("-" * 120)
 
@@ -171,11 +152,9 @@ def scrape_generator():
     driver = build_driver(headless=HEADLESS)
     wait = WebDriverWait(driver, 10)
     seen_on_session: set[Tuple[str, str, str]] = set()
-
     try:
         driver.get(url)
         wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, ".team-content")))
-
         last_sig = page_signature_js(driver)
         stagnant = 0
         page_num = 1
@@ -202,7 +181,6 @@ def scrape_generator():
                     "Date Added": today_str(),
                 }
                 key = row_key_from_dict(rec)
-
                 if title and key not in seen_on_session:
                     seen_on_session.add(key)
                     yield rec
@@ -242,7 +220,6 @@ def scrape_generator():
 
             except (NoSuchElementException, ElementClickInterceptedException, TimeoutException, WebDriverException):
                 break
-
     finally:
         driver.quit()
 
@@ -252,8 +229,7 @@ def scrape_generator():
 def ensure_local_csv():
     if not os.path.exists(LOCAL_CSV):
         with open(LOCAL_CSV, "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow(CSV_HEADERS)
+            csv.writer(f).writerow(CSV_HEADERS)
 
 def read_local_keys() -> set[Tuple[str, str, str]]:
     if not os.path.exists(LOCAL_CSV):
@@ -282,17 +258,12 @@ def append_local_rows(rows: List[List[str]]):
         return
     ensure_local_csv()
     with open(LOCAL_CSV, "a", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerows(rows)
+        csv.writer(f).writerows(rows)
 
 # ==============================
 # Microsoft Graph Excel (via Share link)
 # ==============================
 class GraphExcelClient:
-    """
-    App-only (client credentials) Graph client that resolves the workbook
-    from a Share link using /shares/{shareId}/driveItem.
-    """
     def __init__(self, cred: dict, share_link: str, worksheet_name: str):
         self.tenant_id = cred["tenant_id"]
         self.client_id = cred["client_id"]
@@ -308,7 +279,6 @@ class GraphExcelClient:
         self._drive_id = None
         self._item_id = None
 
-    # ---- auth
     def token(self):
         if self._tok:
             return self._tok
@@ -332,7 +302,6 @@ class GraphExcelClient:
     def headers(self):
         return {"Authorization": f"Bearer {self.token()}"}
 
-    # ---- resolve workbook from share link
     def _ensure_item(self):
         if self._drive_id and self._item_id:
             return
@@ -341,7 +310,7 @@ class GraphExcelClient:
         r = self.session.get(url, headers=self.headers(), timeout=20)
         if r.status_code == 403:
             raise requests.HTTPError(
-                "403 from /shares: app-only access is blocked for this site (Sites.Selected?). "
+                "403 from /shares: app-only access blocked for this site (Sites.Selected?). "
                 "Grant this app write access to the site, or switch to delegated auth.",
                 response=r,
             )
@@ -350,10 +319,8 @@ class GraphExcelClient:
         self._drive_id = item["parentReference"]["driveId"]
         self._item_id = item["id"]
 
-    # ---- worksheet helpers
     @staticmethod
     def _odata_quote(name: str) -> str:
-        # OData single-quote escaping: ' -> ''
         return name.replace("'", "''")
 
     def _worksheets(self) -> list:
@@ -361,7 +328,7 @@ class GraphExcelClient:
         url = f"{self.base}/drives/{self._drive_id}/items/{self._item_id}/workbook/worksheets"
         r = self.session.get(url, headers=self.headers(), timeout=20)
         r.raise_for_status()
-        return r.json().get("value", [])
+        return r.json().get("value", []) or []
 
     def ensure_worksheet(self):
         sheets = self._worksheets()
@@ -390,17 +357,14 @@ class GraphExcelClient:
         return r.json().get("values", []) or []
 
     def append_rows(self, rows: List[List]):
-        """Append rows to the worksheet. IMPORTANT: address must be range only (no sheet name)."""
         if not rows:
             return
         self.ensure_worksheet()
         used = self.get_used_values()
-
-        # Leave row 1 for headers if present; else still start at 2 to keep header space open
-        start_row = (len(used) + 1) if used else 2
+        start_row = (len(used) + 1) if used else 2  # keep row 1 for headers
         end_row = start_row + len(rows) - 1
 
-        address = f"A{start_row}:E{end_row}"    # <-- ONLY the cell range
+        address = f"A{start_row}:E{end_row}"  # range only
         from urllib.parse import quote as urlquote
         ws = urlquote(self._odata_quote(self.worksheet_name))
         url = (
@@ -416,38 +380,46 @@ class GraphExcelClient:
         r.raise_for_status()
 
 # ==============================
-# Main
+# Credentials loader (robust)
 # ==============================
-def try_load_creds(path: str = "creds.json") -> dict | None:
-    # 1) Try JSON file if it exists and is non-empty
-    if os.path.exists(path) and os.path.getsize(path) > 0:
+def _read_json_if_valid(p: str):
+    if os.path.exists(p) and os.path.getsize(p) > 0:
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(p, "r", encoding="utf-8") as f:
                 return json.load(f)
         except json.JSONDecodeError as e:
-            print(f"Warning: Invalid JSON in {path}: {e}")
-    
-    # 2) Fall back to environment variables (SharePoint credentials)
-    client_id = os.getenv("CLIENT_ID")
-    client_secret = os.getenv("CLIENT_SECRET")
-    tenant_id = os.getenv("TENANT_ID")
-    
-    if client_id and client_secret and tenant_id:
-        return {
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "tenant_id": tenant_id,
-        }
-    
-    # 3) Try alternative env vars (CB_EMAIL/CB_PASSWORD)
-    email = os.getenv("CB_EMAIL")
-    password = os.getenv("CB_PASSWORD")
-    if email and password:
-        return {"email": email, "password": password}
-    
-    # 4) No credentials found - return None for graceful fallback
+            print(f"Warning: invalid JSON in {p}: {e}")
     return None
 
+def try_load_creds(paths: tuple = ("creds.json", "credential.json")) -> dict | None:
+    # 1) File(s)
+    for p in paths:
+        data = _read_json_if_valid(p)
+        if data:
+            print(f"Using credentials from {p}")
+            return data
+
+    # 2) Graph env
+    cid = os.getenv("CLIENT_ID")
+    cs  = os.getenv("CLIENT_SECRET")
+    tid = os.getenv("TENANT_ID")
+    if cid and cs and tid:
+        print("Using credentials from environment (Graph).")
+        return {"client_id": cid, "client_secret": cs, "tenant_id": tid}
+
+    # 3) Alternative env (email/password)
+    email = os.getenv("CB_EMAIL")
+    pwd   = os.getenv("CB_PASSWORD")
+    if email and pwd:
+        print("Using credentials from environment (CB email/password).")
+        return {"email": email, "password": pwd}
+
+    print("No credentials available.")
+    return None
+
+# ==============================
+# Main
+# ==============================
 def main():
     print("Scraping...")
     print_table_header()
@@ -456,8 +428,6 @@ def main():
     local_keys = read_local_keys()
 
     staged_local_rows: List[List[str]] = []
-    new_local_count = 0
-
     for rec in scrape_generator():
         k = row_key_from_dict(rec)
         if k in local_keys:
@@ -472,14 +442,13 @@ def main():
         ]
         staged_local_rows.append(row)
         local_keys.add(k)
-        new_local_count += 1
 
     append_local_rows(staged_local_rows)
-    print(f"\nSaved locally to {LOCAL_CSV}. New local rows: {new_local_count}")
+    print(f"\nSaved locally to {LOCAL_CSV}. New local rows: {len(staged_local_rows)}")
 
     cred = try_load_creds()
-    if not cred:
-        print("No credentials found → skipping SharePoint sync.")
+    if not cred or not all(k in cred for k in ("client_id", "client_secret", "tenant_id")):
+        print("No Graph credentials → skipping SharePoint sync.")
         print("\n" + "-" * 120 + "\nDone.\n" + "-" * 120)
         return
 
@@ -488,8 +457,6 @@ def main():
         graph = GraphExcelClient(cred, SHARE_LINK, WORKSHEET_NAME)
         graph.ensure_worksheet()
         sp_existing = graph.get_used_values()
-
-        # If first row looks like headers, skip it when building key set
         if sp_existing and sp_existing[0] and "Tournament" in str(sp_existing[0][0]):
             sp_rows = sp_existing[1:]
         else:
