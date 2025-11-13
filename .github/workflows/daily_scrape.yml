@@ -29,6 +29,22 @@ jobs:
         with:
           chrome-version: stable
       
+      - name: Debug - Check environment and code version
+        env:
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+          TENANT_ID: ${{ secrets.TENANT_ID }}
+        run: |
+          echo "Checking credentials availability..."
+          if [ -n "$CLIENT_ID" ]; then echo "✓ CLIENT_ID is set"; else echo "✗ CLIENT_ID is NOT set"; fi
+          if [ -n "$CLIENT_SECRET" ]; then echo "✓ CLIENT_SECRET is set"; else echo "✗ CLIENT_SECRET is NOT set"; fi
+          if [ -n "$TENANT_ID" ]; then echo "✓ TENANT_ID is set"; else echo "✗ TENANT_ID is NOT set"; fi
+          echo ""
+          echo "Code version info:"
+          wc -l scrape_auctions_updated.py
+          echo "Line 424 of scrape_auctions_updated.py:"
+          sed -n '424p' scrape_auctions_updated.py
+      
       - name: Run scraper
         env:
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
