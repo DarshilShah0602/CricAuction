@@ -29,45 +29,13 @@ jobs:
         with:
           chrome-version: stable
       
-      - name: Create credentials file
-        shell: bash
-        env:
-          CB_EMAIL: ${{ secrets.CB_EMAIL }}
-          CB_PASSWORD: ${{ secrets.CB_PASSWORD }}
-        run: |
-          set -e
-          # Fail fast if secrets are missing
-          [ -n "$CB_EMAIL" ] && [ -n "$CB_PASSWORD" ] || { echo "Missing CB_EMAIL/CB_PASSWORD"; exit 1; }
-          # Write a proper JSON file
-          printf '%s' "{\"email\":\"$CB_EMAIL\",\"password\":\"$CB_PASSWORD\"}" > creds.json
-          python - <<'PY'
-          import json, sys
-          with open("creds.json","r",encoding="utf-8") as f:
-              json.load(f)             # sanity check; will raise if malformed
-          print("creds.json OK")
-          PY
-      
-      - name: Debug - Check environment and code version
-        env:
-          CLIENT_ID: ${{ secrets.CLIENT_ID }}
-          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
-          TENANT_ID: ${{ secrets.TENANT_ID }}
-        run: |
-          echo "Checking credentials availability..."
-          if [ -n "$CLIENT_ID" ]; then echo "✓ CLIENT_ID is set"; else echo "✗ CLIENT_ID is NOT set"; fi
-          if [ -n "$CLIENT_SECRET" ]; then echo "✓ CLIENT_SECRET is set"; else echo "✗ CLIENT_SECRET is NOT set"; fi
-          if [ -n "$TENANT_ID" ]; then echo "✓ TENANT_ID is set"; else echo "✗ TENANT_ID is NOT set"; fi
-          echo ""
-          echo "Code version info:"
-          wc -l scrape_auctions_updated.py
-          echo "Line 424 of scrape_auctions_updated.py:"
-          sed -n '424p' scrape_auctions_updated.py
-      
       - name: Run scraper
         env:
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
           TENANT_ID: ${{ secrets.TENANT_ID }}
+          CB_EMAIL: ${{ secrets.CB_EMAIL }}
+          CB_PASSWORD: ${{ secrets.CB_PASSWORD }}
         run: |
           python scrape_auctions_updated.py
       
