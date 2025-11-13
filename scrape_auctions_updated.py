@@ -419,7 +419,7 @@ class GraphExcelClient:
 # Main
 # ==============================
 def try_load_creds(path: str = "credential.json") -> dict | None:
-    # First, try to load from environment variables (for GitHub Actions)
+    # First, try to load from environment variables (for GitHub Actions / CI)
     client_id = os.getenv("CLIENT_ID")
     client_secret = os.getenv("CLIENT_SECRET")
     tenant_id = os.getenv("TENANT_ID")
@@ -431,14 +431,26 @@ def try_load_creds(path: str = "credential.json") -> dict | None:
             "tenant_id": tenant_id,
         }
     
+    # If any env var is set but not all, warn the user
+    if client_id or client_secret or tenant_id:
+        print("Warning: Incomplete environment credentials. Expected CLIENT_ID, CLIENT_SECRET, and TENANT_ID to all be set.")
+    
     # Fall back to loading from credential.json (for local development)
+    if not os.path.exists(path):
+        return None
+    
     try:
         with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return None
+            content = f.read().strip()
+            if not content:
+                print(f"Warning: {path} is empty")
+                return None
+            return json.loads(content)
     except json.JSONDecodeError as e:
         print(f"Warning: Invalid JSON in {path}: {e}")
+        return None
+    except Exception as e:
+        print(f"Warning: Error reading {path}: {e}")
         return None
 
 def main():
